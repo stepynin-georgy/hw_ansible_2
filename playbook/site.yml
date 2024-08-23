@@ -2,7 +2,7 @@
 - name: Install Clickhouse
   hosts: clickhouse
   handlers:
-  
+
     - name: Start clickhouse service
       become: true
       ansible.builtin.service:
@@ -37,8 +37,9 @@
       become: true
       ansible.builtin.yum:
         name:
-          - "{{ clickhouse_packages }}-{{ clickhouse_version }}.rpm"
-      with_items: "{{ clickhouse_packages }}"
+          - clickhouse-common-static-{{ clickhouse_version }}.rpm
+          - clickhouse-client-{{ clickhouse_version }}.rpm
+          - clickhouse-server-{{ clickhouse_version }}.rpm
       notify: Start clickhouse service
 
     - name: Flush handlers
