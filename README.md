@@ -35,7 +35,7 @@ clickhouse:
 * ```ansible.builtin.template```
 * ```ansible.builtin.replace```
 * ```ansible.builtin.user```
-* * ```ansible.builtin.service```
+* ```ansible.builtin.service```
 
 4. Tasks должны: скачать дистрибутив нужной версии, выполнить распаковку в выбранную директорию, установить vector.
 5. Запустите `ansible-lint site.yml` и исправьте ошибки, если они есть.
@@ -141,6 +141,55 @@ clickhouse-01              : ok=16   changed=4    unreachable=0    failed=0    s
 ```
 
 9. Подготовьте README.md-файл по своему playbook. В нём должно быть описано: что делает playbook, какие у него есть параметры и теги. Пример качественной документации ansible playbook по [ссылке](https://github.com/opensearch-project/ansible-playbook). Так же приложите скриншоты выполнения заданий №5-8
+
+[site.yml](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/playbook/site.yml) содержит 2 блока:
+
+1. Загрузка и установка clickhouse. 
+
+Используемые переменные: 
+
+- `clickhouse_version: "22.3.3.44"` - версия clickhouse
+
+- Загружаемые пакеты:
+
+```
+clickhouse_packages:
+  - clickhouse-client
+  - clickhouse-server
+  - clickhouse-common-static
+```
+
+Tasks: 
+- `TASK [Get clickhouse distrib]` - загрузка rpm-пакетов с помощью модуля `ansible.builtin.get_url`
+- `TASK [Install clickhouse packages]` - установка загруженных пакетов с помощью модуля `ansible.builtin.yum`
+- `TASK [Flush handlers]` - инициирует внеочередной запуск хендлера `Start clickhouse service RUNNING HANDLER [Start clickhouse service]` - для старта сервера Clickhouse в хендлере используется модуль `ansible.builtin.service`
+- `TASK [Wait for clickhouse-server to become available]` - устанавливает паузу в 15 секунд с помощью модуля `ansible.builtin.pause`, чтобы сервер Clickhouse успел запуститься
+- `TASK [Create database]` - создаание бд Clickhouse с помощью модуля `ansible.builtin.command`
+
+2. Загрузка и установка Vector
+
+Используемые переменные:
+
+- `vector_version: "0.21.1"` - версия используемого ПО
+- `vector_os_arch: "x86_64"` - Архитектура
+- `vector_workdir: "/home/centos/vector"` - домашний каталог для загрузки rpm-пакетов
+- `vector_os_user: "vector"` - имя пользователя
+- `vector_os_group: "vector"` - имя группы пользователя
+
+Tasks:
+
+- `TASK [Create vector work directory]` - создает каталог, в котором будут загружены rpm-пакеты для Vector, с помощью модуля `ansible.builtin.file`
+- `TASK [Get Vector distrib]` - загрузка архива с помощью модуля `ansible.builtin.get_url`
+- `TASK [Unzip Vector archive]` - распаковка архива с помощью модуля `ansible.builtin.unarchive`
+- `TASK [Install vector binary]` - копирует исполняемый файл Vector в /usr/bin с помощью модуля `ansible.builtin.copy`
+- `TASK [Check Vector installation]` - проверяет, что бинарный файл Vector работает корректно, с помощью модуля `ansible.builtin.command`
+- `TASK [Create Vector config vector.toml]` - создает файл /etc/vector/vector.toml с конфигом Vector по шаблону из template/vector.toml с помощью модуля `ansible.builtin.template`
+- `TASK [Create vector.service daemon]` - создает файл юнита systemd /lib/systemd/system/vector.service с помощью модуля `ansible.builtin.copy`
+- `TASK [Modify vector.service file]` - редактирует файл /lib/systemd/system/vector.service с помощью модуля `ansible.builtin.replace`
+- `TASK [Create user vector]` - создает пользователя ОС с помощью модуля `ansible.builtin.user`
+- `TASK [Create Vector data_dir]` - создает каталог для данных Vector с помощью модуля `ansible.builtin.file`
+- `RUNNING HANDLER [Start Vector service]` - инициируется запуск хендлера `Start Vector service` для запуска Vector с помощью модуля `ansible.builtin.systemd`
+
 10. Готовый playbook выложите в свой репозиторий, поставьте тег `08-ansible-02-playbook` на фиксирующий коммит, в ответ предоставьте ссылку на него.
 
 ---
