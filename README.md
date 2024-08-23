@@ -7,17 +7,189 @@
 3. Скачайте [Playbook](./playbook/) из репозитория с домашним заданием и перенесите его в свой репозиторий.
 4. Подготовьте хосты в соответствии с группами из предподготовленного playbook.
 
+```
+---
+clickhouse:
+  hosts:
+    clickhouse-01:
+      ansible_host: 10.129.0.34
+      ansible_user: user
+      ansible_ssh_private_key_file: /root/.ssh/id_rsa
+```
+
 ## Основная часть
 
 1. Подготовьте свой inventory-файл `prod.yml`.
 2. Допишите playbook: нужно сделать ещё один play, который устанавливает и настраивает [vector](https://vector.dev). Конфигурация vector должна деплоиться через template файл jinja2. От вас не требуется использовать все возможности шаблонизатора, просто вставьте стандартный конфиг в template файл. Информация по шаблонам по [ссылке](https://www.dmosk.ru/instruktions.php?object=ansible-nginx-install). не забудьте сделать handler на перезапуск vector в случае изменения конфигурации!
+
+[site.yml](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/playbook/site.yml)
+
 3. При создании tasks рекомендую использовать модули: `get_url`, `template`, `unarchive`, `file`.
+
+Используемые модули:
+* ```ansible.builtin.command```
+* ```ansible.builtin.file```
+* ```ansible.builtin.get_url```
+* ```ansible.builtin.unarchive```
+* ```ansible.builtin.copy```
+* ```ansible.builtin.template```
+* ```ansible.builtin.replace```
+* ```ansible.builtin.user```
+* ```ansible.builtin.service```
+
 4. Tasks должны: скачать дистрибутив нужной версии, выполнить распаковку в выбранную директорию, установить vector.
 5. Запустите `ansible-lint site.yml` и исправьте ошибки, если они есть.
+
+Призапуске `ansible-lint site.yml` было 13 ошибок, одно предупреждение.
+
+![изображение](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/img/Screenshot_10.png)
+
+После исправления ошибок запустил еще раз:
+
+![изображение](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/img/Screenshot_12.png)
+
 6. Попробуйте запустить playbook на этом окружении с флагом `--check`.
+
+![изображение](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/img/Screenshot_14.png)
+
+Проверка не проходит после дальше установки Clickhouse, из-за того что они не щагружены на систему.
+
 7. Запустите playbook на `prod.yml` окружении с флагом `--diff`. Убедитесь, что изменения на системе произведены.
+
+После запуска playbook'a подключаемся к целевой системе и проверям службы vector и clickhouse:
+
+![изображение](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/img/Screenshot_15.png)
+
 8. Повторно запустите playbook с флагом `--diff` и убедитесь, что playbook идемпотентен.
+
+```
+root@ans-host:/opt/ans_hw2/08-ansible-02-playbook/playbook# ansible-playbook -i inventory/prod.yml site.yml --diff
+
+PLAY [Install Clickhouse] **********************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *************************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Get clickhouse distrib] ******************************************************************************************************************************************************************************
+ok: [clickhouse-01] => (item=clickhouse-client)
+ok: [clickhouse-01] => (item=clickhouse-server)
+failed: [clickhouse-01] (item=clickhouse-common-static) => {"ansible_loop_var": "item", "changed": false, "dest": "./clickhouse-common-static-22.3.3.44.rpm", "elapsed": 0, "gid": 1000, "group": "user", "item": "clickhouse-common-static", "mode": "0644", "msg": "Request failed", "owner": "user", "response": "HTTP Error 404: Not Found", "secontext": "unconfined_u:object_r:user_home_t:s0", "size": 246310036, "state": "file", "status_code": 404, "uid": 1000, "url": "https://packages.clickhouse.com/rpm/stable/clickhouse-common-static-22.3.3.44.noarch.rpm"}
+
+TASK [Get clickhouse distrib] ******************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Install clickhouse packages] *************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Flush handlers] **************************************************************************************************************************************************************************************
+
+TASK [Wait for clickhouse-server to become available] ******************************************************************************************************************************************************
+Pausing for 15 seconds (output is hidden)
+(ctrl+C then 'C' = continue early, ctrl+C then 'A' = abort)
+ok: [clickhouse-01]
+
+TASK [Create database] *************************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Create vector work directory] ************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Get Vector distrib] **********************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Unzip Vector archive] ********************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Install Vector binary] *******************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Check Vector installation] ***************************************************************************************************************************************************************************
+changed: [clickhouse-01]
+
+TASK [Create Vector config vector.toml] ********************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Create vector.service daemon] ************************************************************************************************************************************************************************
+changed: [clickhouse-01]
+
+TASK [Modify vector.service file] **************************************************************************************************************************************************************************
+--- before: /lib/systemd/system/vector.service
++++ after: /lib/systemd/system/vector.service
+@@ -8,7 +8,7 @@
+ User=vector
+ Group=vector
+ ExecStartPre=/usr/bin/vector validate
+-ExecStart=/usr/bin/vector
++ExecStart=/usr/bin/vector --config /etc/vector/vector.toml
+ ExecReload=/usr/bin/vector validate
+ ExecReload=/bin/kill -HUP $MAINPID
+ Restart=no
+
+changed: [clickhouse-01]
+
+TASK [Create user vector] **********************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+TASK [Create Vector data_dir] ******************************************************************************************************************************************************************************
+ok: [clickhouse-01]
+
+RUNNING HANDLER [Start Vector service] *********************************************************************************************************************************************************************
+changed: [clickhouse-01]
+
+PLAY RECAP *************************************************************************************************************************************************************************************************
+clickhouse-01              : ok=16   changed=4    unreachable=0    failed=0    skipped=0    rescued=1    ignored=0   
+```
+
 9. Подготовьте README.md-файл по своему playbook. В нём должно быть описано: что делает playbook, какие у него есть параметры и теги. Пример качественной документации ansible playbook по [ссылке](https://github.com/opensearch-project/ansible-playbook). Так же приложите скриншоты выполнения заданий №5-8
+
+[site.yml](https://github.com/stepynin-georgy/hw_ansible_2/blob/main/playbook/site.yml) содержит 2 блока:
+
+1. Загрузка и установка clickhouse. 
+
+Используемые переменные: 
+
+- `clickhouse_version: "22.3.3.44"` - версия clickhouse
+
+- Загружаемые пакеты:
+
+```
+clickhouse_packages:
+  - clickhouse-client
+  - clickhouse-server
+  - clickhouse-common-static
+```
+
+Tasks: 
+- `TASK [Get clickhouse distrib]` - загрузка rpm-пакетов с помощью модуля `ansible.builtin.get_url`
+- `TASK [Install clickhouse packages]` - установка загруженных пакетов с помощью модуля `ansible.builtin.yum`
+- `TASK [Flush handlers]` - инициирует внеочередной запуск хендлера `Start clickhouse service RUNNING HANDLER [Start clickhouse service]` - для старта сервера Clickhouse в хендлере используется модуль `ansible.builtin.service`
+- `TASK [Wait for clickhouse-server to become available]` - устанавливает паузу в 15 секунд с помощью модуля `ansible.builtin.pause`, чтобы сервер Clickhouse успел запуститься
+- `TASK [Create database]` - создаание бд Clickhouse с помощью модуля `ansible.builtin.command`
+
+2. Загрузка и установка Vector
+
+Используемые переменные:
+
+- `vector_version: "0.21.1"` - версия используемого ПО
+- `vector_os_arch: "x86_64"` - Архитектура
+- `vector_workdir: "/home/centos/vector"` - домашний каталог для загрузки rpm-пакетов
+- `vector_os_user: "vector"` - имя пользователя
+- `vector_os_group: "vector"` - имя группы пользователя
+
+Tasks:
+
+- `TASK [Create vector work directory]` - создает каталог, в котором будут загружены rpm-пакеты для Vector, с помощью модуля `ansible.builtin.file`
+- `TASK [Get Vector distrib]` - загрузка архива с помощью модуля `ansible.builtin.get_url`
+- `TASK [Unzip Vector archive]` - распаковка архива с помощью модуля `ansible.builtin.unarchive`
+- `TASK [Install vector binary]` - копирует исполняемый файл Vector в /usr/bin с помощью модуля `ansible.builtin.copy`
+- `TASK [Check Vector installation]` - проверяет, что бинарный файл Vector работает корректно, с помощью модуля `ansible.builtin.command`
+- `TASK [Create Vector config vector.toml]` - создает файл /etc/vector/vector.toml с конфигом Vector по шаблону из template/vector.toml с помощью модуля `ansible.builtin.template`
+- `TASK [Create vector.service daemon]` - создает файл юнита systemd /lib/systemd/system/vector.service с помощью модуля `ansible.builtin.copy`
+- `TASK [Modify vector.service file]` - редактирует файл /lib/systemd/system/vector.service с помощью модуля `ansible.builtin.replace`
+- `TASK [Create user vector]` - создает пользователя ОС с помощью модуля `ansible.builtin.user`
+- `TASK [Create Vector data_dir]` - создает каталог для данных Vector с помощью модуля `ansible.builtin.file`
+- `RUNNING HANDLER [Start Vector service]` - инициируется запуск хендлера `Start Vector service` для запуска Vector с помощью модуля `ansible.builtin.systemd`
+
 10. Готовый playbook выложите в свой репозиторий, поставьте тег `08-ansible-02-playbook` на фиксирующий коммит, в ответ предоставьте ссылку на него.
 
 ---
